@@ -7,27 +7,35 @@ from keras import layers
 from keras import activations
 import numpy as np
 import cv2
-from keras.applications.vgg16 import VGG16, preprocess_input
 import os
 import faiss
 from keras import backend as K
 from keras.preprocessing import image
 import config
 from PIL import Image
+from classification_models.keras import Classifiers
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.5
+set_session(tf.Session(config=config))
+
+ResNet18, preprocess_input = Classifiers.get('resnet18')
 
 
 def get_model() -> keras.Model:
     """
     创建resnet中间层输出模型
     """
-    resnet = VGG16(
+    resnet = ResNet18(
         include_top=False,
         weights='imagenet',
         input_tensor=None,
-        input_shape=None,
-        pooling='avg',
+        input_shape=(224, 224, 3),
     )
     output = resnet.output
+    output = keras.layers.GlobalAveragePooling2D(name='pool1')(output)
     output = keras.layers.Dense(64)(output)
     output = keras.layers.Softmax()(output)
     model = keras.Model(
@@ -146,7 +154,7 @@ def test_get_h5():
 
 
 if __name__ == "__main__":
-    # test_get_h5()
+    test_get_h5()
     with h5py.File('image.h5', 'r') as dataset:
         images = dataset['image'][:]
         name = dataset['class_name']
