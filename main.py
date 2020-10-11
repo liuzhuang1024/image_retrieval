@@ -1,23 +1,26 @@
 from os import name
 from unittest.main import main
+import h5py
+from h5py._hl import dataset
 import keras
 from keras import layers
 from keras import activations
 import numpy as np
 import cv2
-from keras.applications.resnet50 import ResNet50, preprocess_input
+from keras.applications.vgg16 import VGG16, preprocess_input
 import os
 import faiss
 from keras import backend as K
 from keras.preprocessing import image
 import config
+from PIL import Image
 
 
 def get_model() -> keras.Model:
     """
     创建resnet中间层输出模型
     """
-    resnet = ResNet50(
+    resnet = VGG16(
         include_top=False,
         weights='imagenet',
         input_tensor=None,
@@ -44,8 +47,20 @@ def get_model() -> keras.Model:
 
 
 def image_preproces(img_path: str):
+    """
+    处理输入图像
+    """
     img = image.load_img(img_path, target_size=(224, 224))
     x = image.img_to_array(img)
+    x = np.expand_dims(x, axis=0)
+    x = preprocess_input(x)
+    return x
+
+
+def image_preproces_v2(img):
+    x = Image.open(img).resize((224, 224))
+    print(x.size)
+    x = np.array(x, np.float32)
     x = np.expand_dims(x, axis=0)
     x = preprocess_input(x)
     return x
@@ -63,7 +78,7 @@ def extract_feature(model: keras.Model, img: np.array):
     classify 为上⾯模型的预测向量
     '''
 
-    conv_feat, fc_feat, classify = model(img)
+    conv_feat, fc_feat, classify = model([img])
     return fc_feat, conv_feat, classify
 
 
@@ -84,11 +99,11 @@ def extract(model: keras.Model, img_folder: str, file_name: str):
     name = []
     image = []
     for im in tqdm.tqdm(img_list):
-        _, fc_feat, _ = model(image_preproces(im))
-        image.append(fc_feat)
+        _, fc_feat, _ = model([image_preproces(im)])
+        image.append(fc_feat[0])
         name.append(os.path.basename(im))
     with h5py.File(file_name, 'w') as dataset:
-        dataset.create_dataset('image', data=image)
+        dataset.create_dataset('image', data=np.array(image, np.float32))
         dataset.create_dataset('class_name', data=np.array(name, np.string_))
     return
 
@@ -102,17 +117,43 @@ def search(gallery, query) -> list:
     return:
     res 为⼀个 list，对应前三个最近邻图⽚的名称
     '''
-    res = None
+    index = faiss.IndexFlatL2(64)
+    index.add(gallery)
+    print(index.is_trained)
+    D, I = index.search(query, 3)
+    print(I)
+    print(D)
+    res = [[config.class_name[i] for i in j] for j in I]
     return res
 
 
 def test_extract_teature():
+    """
+    测试函数 extract_feature
+    """
     model = get_model()
     img = image_preproces('img/gen_00200.jpg')
     image_feature = extract_feature(model, img)
     print(image_feature)
 
 
-if __name__ == "__main__":
+def test_get_h5():
+    """
+    测试函数 get_model
+    """
     model = get_model()
     extract(model, 'img', 'image.h5')
+
+
+if __name__ == "__main__":
+    # test_get_h5()
+    with h5py.File('image.h5', 'r') as dataset:
+        images = dataset['image'][:]
+        name = dataset['class_name']
+        print([i for i in name])
+    model = get_model()
+    img = image_preproces('img/gen_00400.jpg')
+    image_feature, _, _ = extract_feature(model, img)
+    image_feature = np.array(image_feature, np.float32)
+    res = search(images, image_feature)
+    print(res)
