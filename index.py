@@ -1,14 +1,16 @@
 from flask import request, Flask, abort
-import base64
-import cv2
 import flask
-import numpy as np
-from main import get_model, extract_feature, image_preproces_v2, search, image_preproces
+from main import search
 import config
+import logging
+from predict import FrozenPredict
+
 app = Flask(__name__)
 
-model = get_model()
-# model.predict()
+logging.basicConfig()
+logging.info("Loading Model....")
+predict = FrozenPredict().predict
+
 
 @app.route("/photo", methods=['POST'])
 def get_frame():
@@ -16,12 +18,11 @@ def get_frame():
     upload_file = request.files['file']
     print(upload_file)
     if upload_file:
-        image_data = image_preproces(upload_file)
-        _, fc_feat, _ = model([image_data])
+        _, fc_feat, _ = predict(upload_file)
         res = search(config.image, fc_feat)
         return flask.jsonify({'res': res})
     else:
-        abort(400)
+        return "No File"
 
 
 if __name__ == "__main__":

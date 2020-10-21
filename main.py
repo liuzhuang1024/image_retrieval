@@ -3,20 +3,14 @@ from unittest.main import main
 import h5py
 from h5py._hl import dataset
 import keras
-from keras import layers
-from keras import activations
 import numpy as np
-import cv2
 import os
 import faiss
-from keras import backend as K
 from keras.preprocessing import image
-import config
 from PIL import Image
 from classification_models.keras import Classifiers
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
-
 config = tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 0.5
 set_session(tf.Session(config=config))
@@ -42,17 +36,20 @@ def get_model() -> keras.Model:
         resnet.input, output
     )
     model.summary()
-
-    model = K.function(
-        inputs=[model.input],
-        outputs=[
-            model.layers[-3].output,
-            model.layers[-2].output,
-            model.layers[-1].output
-        ])
-
+    # 获取模型的中间层输出
+    # model = K.function(
+    #     inputs=[model.input],
+    #     outputs=[
+    #         model.layers[-3].output,
+    #         model.layers[-2].output,
+    #         model.layers[-1].output
+    #     ])
+    model.save("weights/model.h5")
     return model
 
+
+def get_pb(model, ):
+    return 
 
 def image_preproces(img_path: str):
     """
@@ -104,6 +101,7 @@ def extract(model: keras.Model, img_folder: str, file_name: str):
     import h5py
     import tqdm
     img_list = glob.glob(os.path.join(img_folder, '*[jpg|png]'))
+    img_list.sort()
     name = []
     image = []
     for im in tqdm.tqdm(img_list):
@@ -116,7 +114,7 @@ def extract(model: keras.Model, img_folder: str, file_name: str):
     return
 
 
-def search(gallery, query) -> list:
+def search(gallery, query, ) -> list:
     '''
     返回 gallery 中与 query 最近邻的3个结果
     param:
@@ -125,6 +123,7 @@ def search(gallery, query) -> list:
     return:
     res 为⼀个 list，对应前三个最近邻图⽚的名称
     '''
+    import config
     index = faiss.IndexFlatL2(64)
     index.add(gallery)
     print(index.is_trained)
@@ -160,7 +159,7 @@ if __name__ == "__main__":
         name = dataset['class_name']
         print([i for i in name])
     model = get_model()
-    img = image_preproces('img/gen_00400.jpg')
+    img = image_preproces('img/5.jpg')
     image_feature, _, _ = extract_feature(model, img)
     image_feature = np.array(image_feature, np.float32)
     res = search(images, image_feature)

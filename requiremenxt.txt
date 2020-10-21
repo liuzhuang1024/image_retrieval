@@ -1,1 +1,2 @@
+keras==2.2.5
 image-classifiers==1.0.0b1
