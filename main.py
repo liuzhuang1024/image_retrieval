@@ -6,14 +6,7 @@ import keras
 import numpy as np
 import os
 import faiss
-from keras.preprocessing import image
-from PIL import Image
 from classification_models.keras import Classifiers
-import tensorflow as tf
-from keras.backend.tensorflow_backend import set_session
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.5
-set_session(tf.Session(config=config))
 
 ResNet18, preprocess_input = Classifiers.get('resnet18')
 
@@ -36,55 +29,8 @@ def get_model() -> keras.Model:
         resnet.input, output
     )
     model.summary()
-    # 获取模型的中间层输出
-    # model = K.function(
-    #     inputs=[model.input],
-    #     outputs=[
-    #         model.layers[-3].output,
-    #         model.layers[-2].output,
-    #         model.layers[-1].output
-    #     ])
     model.save("weights/model.h5")
     return model
-
-
-def get_pb(model, ):
-    return 
-
-def image_preproces(img_path: str):
-    """
-    处理输入图像
-    """
-    img = image.load_img(img_path, target_size=(224, 224))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    return x
-
-
-def image_preproces_v2(img):
-    x = Image.open(img).resize((224, 224))
-    print(x.size)
-    x = np.array(x, np.float32)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    return x
-
-
-def extract_feature(model: keras.Model, img: np.array):
-    '''
-    ⽤模型提取⼀张图⽚的特征向量
-    param:
-    model 为上⾯定义的模型
-    img 为⼀张图⽚
-    return:
-    fc_feat 为上⾯模型中定义的64维全连接层的输出
-    conf_feat 为最后⼀层卷积层输出的特征图，并变形成⼀条⼀维向量
-    classify 为上⾯模型的预测向量
-    '''
-
-    conv_feat, fc_feat, classify = model([img])
-    return fc_feat, conv_feat, classify
 
 
 def extract(model: keras.Model, img_folder: str, file_name: str):
@@ -100,12 +46,19 @@ def extract(model: keras.Model, img_folder: str, file_name: str):
     import glob
     import h5py
     import tqdm
+    from predict import FrozenPredict
+    from PIL import Image
+    predict = FrozenPredict().predict
     img_list = glob.glob(os.path.join(img_folder, '*[jpg|png]'))
     img_list.sort()
+
     name = []
     image = []
     for im in tqdm.tqdm(img_list):
-        _, fc_feat, _ = model([image_preproces(im)])
+        im = Image.open(im)
+        im = im.resize((224, 224))
+        im = np.expand_dims(im, 0)
+        _, fc_feat, _ = predict(im)
         image.append(fc_feat[0])
         name.append(os.path.basename(im))
     with h5py.File(file_name, 'w') as dataset:
@@ -134,33 +87,3 @@ def search(gallery, query, ) -> list:
     return res
 
 
-def test_extract_teature():
-    """
-    测试函数 extract_feature
-    """
-    model = get_model()
-    img = image_preproces('img/gen_00200.jpg')
-    image_feature = extract_feature(model, img)
-    print(image_feature)
-
-
-def test_get_h5():
-    """
-    测试函数 get_model
-    """
-    model = get_model()
-    extract(model, 'img', 'image.h5')
-
-
-if __name__ == "__main__":
-    test_get_h5()
-    with h5py.File('image.h5', 'r') as dataset:
-        images = dataset['image'][:]
-        name = dataset['class_name']
-        print([i for i in name])
-    model = get_model()
-    img = image_preproces('img/5.jpg')
-    image_feature, _, _ = extract_feature(model, img)
-    image_feature = np.array(image_feature, np.float32)
-    res = search(images, image_feature)
-    print(res)
